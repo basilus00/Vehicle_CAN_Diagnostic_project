@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vehicle data & localisation Dashboard</title>
+
+  <!-- Chart.js for Gauges -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+  <!-- Leaflet Map -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+  <!-- MQTT.js -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <link rel="stylesheet" href="styleDIAG.css">
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <h1>🚗 OBD-II data + GPS Dashboard</h1>
+      <p>Real-time Vehicle Diagnostics & Location Tracking</p>
+    </div>
+    <div class="header-right">
+      <div class="status-indicator">
+        <span id="mqttStatus" class="status-dot offline"></span>
+        <span id="statusText">Disconnected</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Dashboard -->
+  <main class="dashboard">
+    <!-- Left Panel: OBD-II Gauges -->
+    <div class="left-panel">
+      <div class="gauge-row">
+        <div class="gauge-card">
+          <h3>⚙️ Engine RPM</h3>
+          <div class="gauge-container">
+            <canvas id="rpmGauge"></canvas>
+          </div>
+          <div class="digital-display" id="rpmDisplay">0 RPM</div>
+        </div>
+
+        <div class="gauge-card">
+          <h3>🚀 Vehicle Speed</h3>
+          <div class="gauge-container">
+            <canvas id="speedGauge"></canvas>
+          </div>
+          <div class="digital-display" id="speedDisplay">0 km/h</div>
+        </div>
+      </div>
+
+      <div class="gauge-row">
+        <div class="gauge-card">
+          <h3>❄️ Coolant Temp</h3>
+          <div class="gauge-container">
+            <canvas id="coolantGauge"></canvas>
+          </div>
+          <div class="digital-display" id="coolantDisplay">-- °C</div>
+        </div>
+
+        <div class="gauge-card">
+          <h3>🌡️ Intake Temp</h3>
+          <div class="gauge-container">
+            <canvas id="intakeGauge"></canvas>
+          </div>
+          <div class="digital-display" id="intakeDisplay">-- °C</div>
+        </div>
+      </div>
+
+      <div class="gauge-row">
+        <div class="gauge-card">
+          <h3>⚡ Engine Load</h3>
+          <div class="gauge-container">
+            <canvas id="loadGauge"></canvas>
+          </div>
+          <div class="digital-display" id="loadDisplay">0 %</div>
+        </div>
+
+        <div class="gauge-card">
+          <h3>🎚️ Throttle</h3>
+          <div class="gauge-container">
+            <canvas id="throttleGauge"></canvas>
+          </div>
+          <div class="digital-display" id="throttleDisplay">0 %</div>
+        </div>
+      </div>
+
+      <div class="gauge-row full-row">
+        <div class="gauge-card full-width">
+          <h3>💨 MAF Air Flow</h3>
+          <div class="gauge-container">
+            <canvas id="mafGauge"></canvas>
+          </div>
+          <div class="digital-display" id="mafDisplay">0 g/s</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: GPS Map -->
+    <div class="right-panel">
+      <div class="map-container">
+        <div id="map"></div>
+        <div class="map-controls">
+          <button id="centerBtn" class="control-btn">📍 Center</button>
+          <button id="clearBtn" class="control-btn">🗑️ Clear</button>
+        </div>
+      </div>
+
+      <!-- GPS Info Cards -->
+      <div class="gps-info-section">
+        <h4>📍 GPS Information</h4>
+        <div class="gps-cards">
+          <div class="info-card">
+            <label>Latitude</label>
+            <span id="gpsLatitude">--</span>
+          </div>
+          <div class="info-card">
+            <label>Longitude</label>
+            <span id="gpsLongitude">--</span>
+          </div>
+          <div class="info-card">
+            <label>Altitude</label>
+            <span id="gpsAltitude">-- m</span>
+          </div>
+          <div class="info-card">
+            <label>Satellites</label>
+            <span id="gpsSatellites">--</span>
+          </div>
+          <div class="info-card">
+            <label>HDOP</label>
+            <span id="gpsHDOP">--</span>
+          </div>
+          <div class="info-card">
+            <label>GPS Speed</label>
+            <span id="gpsSpeedVal">-- km/h</span>
+          </div>
+          <div class="info-card">
+            <label>Course</label>
+            <span id="gpsCourse">-- °</span>
+          </div>
+          <div class="info-card">
+            <label>Distance</label>
+            <span id="gpsDistance">-- km</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============= AI DIAGNOSTICS SECTION ============= -->
+  <section class="diagnostics-section">
+    <div class="diagnostics-header">
+      <h2>🔍 AI Vehicle Diagnostics</h2>
+      <div class="diagnostics-stats">
+        <span class="stat critical"><span id="statCritical">0</span> Critical</span>
+        <span class="stat warning"><span id="statWarning">0</span> Warnings</span>
+        <span class="stat info"><span id="statInfo">0</span> Info</span>
+      </div>
+    </div>
+    <div id="diagnosticsContainer" class="diagnostics-grid">
+      <div class="diagnostics-card health-perfect">
+        <h3>✅ System Healthy</h3>
+        <p>Analyzing vehicle parameters...</p>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="log-container">
+      <h4>📊 System Status</h4>
+      <div class="data-grid">
+        <div class="data-item">
+          <label>Last Update:</label>
+          <span id="lastUpdate">--</span>
+        </div>
+        <div class="data-item">
+          <label>OBD Messages:</label>
+          <span id="obd2MessageCount">0</span>
+        </div>
+        <div class="data-item">
+          <label>GPS Messages:</label>
+          <span id="gpsMessageCount">0</span>
+        </div>
+        <div class="data-item">
+          <label>Connection Time:</label>
+          <span id="connectionTime">--</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<!-- Load diagnostics engine first, then main script -->
+<script src="diagnostics.js"></script>
+<script src="scriptDIAG.js"></script>
+</body>
+</html>
